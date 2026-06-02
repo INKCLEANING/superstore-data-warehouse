@@ -1,0 +1,52 @@
+version: 2
+
+models:
+  - name: fct_orders
+    description: >
+      One row per order line item. All measures (sales, profit, discount, quantity)
+      and foreign keys to all dimension tables.
+    columns:
+      - name: row_id
+        tests: [not_null, unique]
+      - name: order_id
+        tests: [not_null]
+      - name: customer_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_customers')
+              field: customer_id
+      - name: product_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_products')
+              field: product_id
+      - name: sales
+        tests:
+          - not_null
+      - name: profit
+        tests:
+          - not_null
+
+  - name: dim_customers
+    description: One row per customer with segment, order history, and lifetime value.
+    columns:
+      - name: customer_id
+        tests: [not_null, unique]
+      - name: segment
+        tests:
+          - accepted_values:
+              values: ["Consumer", "Corporate", "Home Office"]
+
+  - name: dim_products
+    description: One row per product with category hierarchy and aggregate sales stats.
+    columns:
+      - name: product_id
+        tests: [not_null, unique]
+
+  - name: dim_geography
+    description: Unique city/state/region/country combinations.
+    columns:
+      - name: postal_code
+        tests: [not_null]

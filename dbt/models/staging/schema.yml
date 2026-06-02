@@ -1,0 +1,46 @@
+version: 2
+
+sources:
+  - name: raw
+    database: "{{ env_var('GCP_PROJECT_ID') }}"
+    schema: raw
+    tables:
+      - name: orders
+        description: Raw Superstore order data loaded from CSV.
+
+models:
+  - name: stg_orders
+    description: Cleaned order line items with derived fields.
+    columns:
+      - name: row_id
+        tests: [not_null, unique]
+      - name: order_id
+        tests: [not_null]
+      - name: customer_id
+        tests: [not_null]
+      - name: product_id
+        tests: [not_null]
+      - name: segment
+        tests:
+          - accepted_values:
+              values: ["Consumer", "Corporate", "Home Office"]
+      - name: region
+        tests:
+          - accepted_values:
+              values: ["East", "West", "Central", "South"]
+      - name: ship_mode
+        tests:
+          - accepted_values:
+              values: ["First Class", "Second Class", "Standard Class", "Same Day"]
+
+  - name: stg_customers
+    description: Deduplicated customer list with segment.
+    columns:
+      - name: customer_id
+        tests: [not_null, unique]
+
+  - name: stg_products
+    description: Deduplicated product catalog with category hierarchy.
+    columns:
+      - name: product_id
+        tests: [not_null, unique]
