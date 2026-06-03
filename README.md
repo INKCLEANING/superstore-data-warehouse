@@ -10,26 +10,29 @@ Demonstrates ELT pipeline design, layered dbt modeling, data quality testing, an
 ## Architecture
 
 ```
-superstore.csv  (Kaggle)
+Airflow DAG: superstore_pipeline (@weekly)
       │
-      ▼  Python loader (scripts/load_data.py)
-BigQuery: raw.orders  (9,994 rows)
+      ├── Task 1: load_data
+      │       superstore.csv (Kaggle)
+      │             ▼  scripts/load_data.py
+      │       BigQuery: raw.orders  (9,994 rows)
       │
-      ▼  dbt staging layer  (views)
-BigQuery: dbt_superstore_staging
-      ├── stg_orders
-      ├── stg_customers
-      └── stg_products
+      ├── Task 2: dbt_run
+      │       BigQuery: dbt_superstore_staging
+      │             ├── stg_orders
+      │             ├── stg_customers
+      │             └── stg_products
+      │       BigQuery: dbt_superstore_marts
+      │             ├── fct_orders       (10k rows)
+      │             ├── dim_customers    (793 customers)
+      │             ├── dim_products     (1,894 products)
+      │             └── dim_geography    (632 locations)
       │
-      ▼  dbt marts layer  (tables)
-BigQuery: dbt_superstore_marts
-      ├── fct_orders       (10k rows — one per order line item)
-      ├── dim_customers    (793 customers)
-      ├── dim_products     (1,894 products)
-      └── dim_geography    (632 locations)
-      │
-      ▼  Looker Studio (native BigQuery connector)
-Dashboards: Sales Overview · Product Performance · Customer Segments
+      └── Task 3: dbt_test
+              27 data quality tests → all passing
+                    ▼
+              Looker Studio (native BigQuery connector)
+              Dashboards: Sales Overview · Product Performance · Customer Segments
 ```
 
 ---
@@ -38,6 +41,7 @@ Dashboards: Sales Overview · Product Performance · Customer Segments
 
 | Layer | Tool |
 |---|---|
+| Orchestration | Apache Airflow 2.9 (Docker) |
 | Data warehouse | Google BigQuery (free tier) |
 | Transformation | dbt Core 1.8 |
 | Dashboards | Looker Studio |
@@ -79,6 +83,40 @@ Materialized tables ready for dashboards and ad-hoc analysis.
 | `unique` | 7 | `row_id`, `customer_id`, `product_id` |
 | `accepted_values` | 5 | segment, region, ship_mode |
 | `relationships` | 2 | fct_orders → dim_customers, dim_products |
+
+---
+
+## Airflow Orchestration
+
+The full pipeline is orchestrated by a single Airflow DAG (`dags/superstore_pipeline.py`) that runs on a weekly schedule.
+
+**DAG: `superstore_pipeline`**
+
+```
+load_data  →  dbt_run  →  dbt_test
+```
+
+| Task | Type | What it does |
+|---|---|---|
+| `load_data` | PythonOperator | Runs `scripts/load_data.py` — loads CSV into BigQuery `raw.orders` |
+| `dbt_run` | BashOperator | Runs `dbt run` — builds all 7 staging and mart models |
+| `dbt_test` | BashOperator | Runs `dbt test` — validates all 27 data quality tests |
+
+**Run Airflow locally with Docker:**
+
+```bash
+# 1. Build and initialize (first time only)
+docker compose up airflow-init
+
+# 2. Start Airflow
+docker compose up airflow-webserver airflow-scheduler -d
+
+# 3. Open the UI
+open http://localhost:8080
+# Login: admin / admin
+
+# 4. Trigger the DAG manually or let it run on schedule (@weekly)
+```
 
 ---
 
@@ -128,15 +166,19 @@ dbt docs generate && dbt docs serve
 
 ```
 superstore-data-warehouse/
+├── dags/
+│   └── superstore_pipeline.py  # Airflow DAG: load → dbt run → dbt test
 ├── scripts/
-│   └── load_data.py          # CSV → BigQuery raw.orders
-├── data/                     # gitignored — download via kaggle CLI
+│   └── load_data.py            # CSV → BigQuery raw.orders
+├── data/                       # gitignored — download via kaggle CLI
 ├── dbt/
 │   ├── dbt_project.yml
 │   ├── profiles.yml
 │   └── models/
-│       ├── staging/          # stg_orders, stg_customers, stg_products
-│       └── marts/            # fct_orders, dim_customers, dim_products, dim_geography
+│       ├── staging/            # stg_orders, stg_customers, stg_products
+│       └── marts/              # fct_orders, dim_customers, dim_products, dim_geography
+├── docker-compose.yml          # Airflow webserver, scheduler, metadata DB
+├── Dockerfile.airflow          # Airflow image with project dependencies
 ├── requirements.txt
 ├── .env.example
 └── plan.md
