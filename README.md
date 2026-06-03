@@ -3,7 +3,7 @@
 End-to-end data warehouse and analytics project built on the classic Tableau Superstore dataset.
 Demonstrates ELT pipeline design, layered dbt modeling, data quality testing, and business dashboards.
 
-**[View Live Dashboard →](ADD_LOOKER_STUDIO_URL_HERE)**
+**[View Live Dashboard →](https://datastudio.google.com/reporting/4bdaea86-2d07-4f06-98c4-57f77d2bcddf)**
 
 ---
 
