@@ -1,4 +1,5 @@
 data/
+plan.md
 gcp-key.json
 .env
 .venv/
